@@ -1,0 +1,4 @@
+..\putty.h(1448): Error! E1100: Definition of macro 'HIGH_SURROGATE_START' not identical to previous definition
+..\putty.h(1449): Error! E1100: Definition of macro 'HIGH_SURROGATE_END' not identical to previous definition
+..\putty.h(1450): Error! E1100: Definition of macro 'LOW_SURROGATE_START' not identical to previous definition
+..\putty.h(1451): Error! E1100: Definition of macro 'LOW_SURROGATE_END' not identical to previous definition
