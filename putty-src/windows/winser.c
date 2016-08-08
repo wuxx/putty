@@ -5,7 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <limits.h>
-
+#include <signal.h>
+#include <assert.h>
 #include "putty.h"
 
 #define SERIAL_MAX_BACKLOG 4096
@@ -18,6 +19,8 @@ typedef struct serial_backend_data {
     long clearbreak_time;
     int break_in_progress;
 } *Serial;
+
+static int serial_send(void *handle, char *buf, int len);
 
 static void serial_terminate(Serial serial)
 {
@@ -42,7 +45,8 @@ static int serial_gotdata(struct handle *h, void *data, int len)
     Serial serial = (Serial)handle_get_privdata(h);
     if (len <= 0) {
 	const char *error_msg;
-
+	char *msg;
+	
 	/*
 	 * Currently, len==0 should never happen because we're
 	 * ignoring EOFs. However, it seems not totally impossible
@@ -55,6 +59,10 @@ static int serial_gotdata(struct handle *h, void *data, int len)
 	else
 	    error_msg = "Error reading from serial device";
 
+	
+	msg = dupprintf("wuxx gotdata [%s]", (char*)data);
+	logevent(serial->frontend, msg);
+	
 	serial_terminate(serial);
 
 	notify_remote_exit(serial->frontend);
@@ -72,8 +80,13 @@ static int serial_gotdata(struct handle *h, void *data, int len)
 static void serial_sentdata(struct handle *h, int new_backlog)
 {
     Serial serial = (Serial)handle_get_privdata(h);
+	char *msg;
+	msg = dupprintf("wuxx serial_sentdata [%d]", new_backlog);
+	logevent(serial->frontend, msg);
+
     if (new_backlog < 0) {
 	const char *error_msg = "Error writing to serial device";
+
 
 	serial_terminate(serial);
 
@@ -198,6 +211,68 @@ static const char *serial_configure(Serial serial, HANDLE serport, Conf *conf)
  * Also places the canonical host name into `realhost'. It must be
  * freed by the caller.
  */
+ extern Serial g_serial;
+ extern int protocol_serial;
+void SignalHandler(int signal)
+{
+	char *msg = dupprintf("wuxx receive signal [%d]", signal);
+    logevent(g_serial->frontend, msg);
+}
+
+/* 0: ready state; 1. finish state */
+int cmd_request = 0;
+
+char *sm_ibuf_name = "putty_share_memory_in";
+char *sm_obuf_name = "putty_share_memory_out";
+extern volatile char *sm_ibuf, *sm_obuf;
+extern const int SM_INPUT_BUF_SIZE;
+extern const int SM_OUTPUT_BUF_SIZE;
+
+LPCTSTR create_sm(char *sm_name, int size)
+{
+    HANDLE hMapFile;
+    LPCTSTR pBuf;
+
+    hMapFile = CreateFileMapping(
+        INVALID_HANDLE_VALUE,    // use paging file
+        NULL,                    // default security
+        PAGE_READWRITE,          // read/write access
+        0,                       // maximum object size (high-order DWORD)
+        size,                	// maximum object size (low-order DWORD)
+        sm_name);                 // name of mapping object
+
+    pBuf = (LPTSTR) MapViewOfFile(hMapFile,   // handle to map object
+        FILE_MAP_ALL_ACCESS, // read/write permission
+        0,
+        0,
+        size);
+	
+	assert(pBuf != NULL);
+	return pBuf;
+}
+
+static DWORD WINAPI handle_ssend_threadfunc(void *param)
+{
+	char *str = "help\n";
+	/* serial_send(g_serial, str, strlen(str)); */
+	sm_ibuf = (char *)create_sm(sm_ibuf_name, SM_INPUT_BUF_SIZE);
+	sm_obuf = (char *)create_sm(sm_obuf_name, SM_OUTPUT_BUF_SIZE);
+
+	memset(sm_ibuf, 0, SM_INPUT_BUF_SIZE);	
+	memset(sm_obuf, 0, SM_OUTPUT_BUF_SIZE);	
+
+	memcpy(&sm_ibuf[1], str, strlen(str));
+	sm_ibuf[0] = 1;
+	while(1) {
+		if (sm_ibuf[0] == 1) {
+			serial_send(g_serial, &sm_ibuf[1], strlen(&sm_ibuf[1]));
+		}
+		
+		memset(sm_ibuf, 0, SM_INPUT_BUF_SIZE);	
+		sleep(1);
+	}
+}
+
 static const char *serial_init(void *frontend_handle, void **backend_handle,
 			       Conf *conf, char *host, int port,
 			       char **realhost, int nodelay, int keepalive)
@@ -213,15 +288,19 @@ static const char *serial_init(void *frontend_handle, void **backend_handle,
     serial->bufsize = 0;
     serial->break_in_progress = FALSE;
     *backend_handle = serial;
-
+	g_serial = serial;
+	protocol_serial = 1;
     serial->frontend = frontend_handle;
+
+ 	typedef void (*SignalHandlerPointer)(int);
+ 	signal(SIGBREAK, SignalHandler);
+ 
 
     serline = conf_get_str(conf, CONF_serline);
     {
 	char *msg = dupprintf("Opening serial device %s", serline);
 	logevent(serial->frontend, msg);
     }
-
     {
 	/*
 	 * Munge the string supplied by the user into a Windows filename.
@@ -274,6 +353,12 @@ static const char *serial_init(void *frontend_handle, void **backend_handle,
      * Specials are always available.
      */
     update_specials_menu(serial->frontend);
+	
+    DWORD ssend_threadid; /* required for Win9x */
+    CreateThread(NULL, 0, handle_ssend_threadfunc,
+		 0, 0, &ssend_threadid);
+	char *msg = dupprintf("ssend_threadid %d", ssend_threadid);
+	logevent(serial->frontend, msg);
 
     return NULL;
 }
@@ -305,10 +390,12 @@ static void serial_reconfig(void *handle, Conf *conf)
 static int serial_send(void *handle, char *buf, int len)
 {
     Serial serial = (Serial) handle;
-
+	char *msg;
     if (serial->out == NULL)
 	return 0;
-
+	
+	msg = dupprintf("wuxx send [%s]", buf);
+	logevent(serial->frontend, msg);
     serial->bufsize = handle_write(serial->out, buf, len);
     return serial->bufsize;
 }

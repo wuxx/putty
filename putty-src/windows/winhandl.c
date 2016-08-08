@@ -110,13 +110,37 @@ struct handle_input {
 /*
  * The actual thread procedure for an input thread.
  */
+ typedef struct serial_backend_data {
+    HANDLE port;
+    struct handle *out, *in;
+    void *frontend;
+    int bufsize;
+    long clearbreak_time;
+    int break_in_progress;
+} *Serial;
+
+Serial g_serial;
+int protocol_serial = 0;
+volatile char *sm_ibuf, *sm_obuf;
+int sm_ibuf_index = 1, sm_obuf_index = 1;
+const int SM_INPUT_BUF_SIZE	 = 4096;
+const int SM_OUTPUT_BUF_SIZE = 4096;
+
+struct sm_obuf_struct {
+	int writable;
+	int offset;
+	char buf[0];
+};
+
 static DWORD WINAPI handle_input_threadfunc(void *param)
 {
     struct handle_input *ctx = (struct handle_input *) param;
     OVERLAPPED ovl, *povl;
     HANDLE oev;
     int readret, readlen, finished;
-
+	char *msg;
+	struct sm_obuf_struct *posm;
+	
     if (ctx->flags & HANDLE_FLAG_OVERLAPPED) {
 	povl = &ovl;
 	oev = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -135,6 +159,27 @@ static DWORD WINAPI handle_input_threadfunc(void *param)
 	    povl->hEvent = oev;
 	}
 	readret = ReadFile(ctx->h, ctx->buffer,readlen, &ctx->len, povl);
+	if (protocol_serial) {
+		msg = dupprintf("wuxx recv [%s] [%d] [%x]", ctx->buffer != NULL ? ctx->buffer : "NULL", ctx->len, ctx->buffer[0]);
+		logevent(g_serial->frontend, msg);
+
+		if (sm_obuf != NULL) {
+		posm = (struct sm_obuf_struct *)sm_obuf;
+		
+		/* msg = dupprintf("wuxx sm_obuf [%x] [%x][%x]", sm_obuf, sm_obuf[0], sm_obuf[1]);
+		logevent(g_serial->frontend, msg); */
+			if (posm->writable == 1) {
+				if (((SM_OUTPUT_BUF_SIZE - sizeof(struct sm_obuf_struct)) - posm->offset) > ctx->len) {
+					/* msg = dupprintf("wuxx recv [%s]", ctx->buffer != NULL ? ctx->buffer : "NULL");
+					logevent(g_serial->frontend, msg); */ 
+					memcpy(&posm->buf[posm->offset], ctx->buffer, ctx->len);
+					posm->offset += ctx->len;
+				}
+			}
+
+		}
+	}
+
 	if (!readret)
 	    ctx->readerr = GetLastError();
 	else
@@ -142,6 +187,26 @@ static DWORD WINAPI handle_input_threadfunc(void *param)
 	if (povl && !readret && ctx->readerr == ERROR_IO_PENDING) {
 	    WaitForSingleObject(povl->hEvent, INFINITE);
 	    readret = GetOverlappedResult(ctx->h, povl, &ctx->len, FALSE);
+		if (protocol_serial) {
+			msg = dupprintf("wuxx recv [%s] [%d] [%x]", ctx->buffer != NULL ? ctx->buffer : "NULL", ctx->len, ctx->buffer[0]);
+			logevent(g_serial->frontend, msg);
+
+			if (sm_obuf != NULL) {
+			posm = (struct sm_obuf_struct *)sm_obuf;
+			
+			/* msg = dupprintf("wuxx sm_obuf [%x] [%x][%x]", sm_obuf, sm_obuf[0], sm_obuf[1]);
+			logevent(g_serial->frontend, msg); */
+				if (posm->writable == 1) {
+					if ((SM_OUTPUT_BUF_SIZE - sizeof(struct sm_obuf_struct) - posm->offset) > ctx->len) { /* FIXME: hard code */
+						/* msg = dupprintf("wuxx recv [%s]", ctx->buffer != NULL ? ctx->buffer : "NULL");
+						logevent(g_serial->frontend, msg); */ 
+						memcpy(&posm->buf[posm->offset], ctx->buffer, ctx->len);
+						posm->offset += ctx->len;
+					}
+				}
+
+			}
+		}
 	    if (!readret)
 		ctx->readerr = GetLastError();
 	    else
@@ -285,7 +350,8 @@ static DWORD WINAPI handle_output_threadfunc(void *param)
     OVERLAPPED ovl, *povl;
     HANDLE oev;
     int writeret;
-
+	char *msg;
+	
     if (ctx->flags & HANDLE_FLAG_OVERLAPPED) {
 	povl = &ovl;
 	oev = CreateEvent(NULL, TRUE, FALSE, NULL);
@@ -312,6 +378,9 @@ static DWORD WINAPI handle_output_threadfunc(void *param)
 
 	writeret = WriteFile(ctx->h, ctx->buffer, ctx->len,
 			     &ctx->lenwritten, povl);
+	msg = dupprintf("wuxx WriteFile [%s]", ctx->buffer != NULL ? ctx->buffer : "NULL");
+	logevent(g_serial->frontend, msg);
+
 	if (!writeret)
 	    ctx->writeerr = GetLastError();
 	else
@@ -348,11 +417,15 @@ static void handle_try_output(struct handle_output *ctx)
 {
     void *senddata;
     int sendlen;
-
+	char *msg;
+	
     if (!ctx->busy && bufchain_size(&ctx->queued_data)) {
 	bufchain_prefix(&ctx->queued_data, &senddata, &sendlen);
 	ctx->buffer = senddata;
 	ctx->len = sendlen;
+	msg = dupprintf("wuxx handle_try_output [%s]", ctx->buffer);
+	logevent(g_serial->frontend, msg);
+	
 	SetEvent(ctx->ev_from_main);
 	ctx->busy = TRUE;
     } else if (!ctx->busy && bufchain_size(&ctx->queued_data) == 0 &&
