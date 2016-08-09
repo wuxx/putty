@@ -254,6 +254,7 @@ LPCTSTR create_sm(char *sm_name, int size)
 static DWORD WINAPI handle_ssend_threadfunc(void *param)
 {
 	char *str = "help\n";
+    int len = 0;
 	/* serial_send(g_serial, str, strlen(str)); */
 	sm_ibuf = (char *)create_sm(sm_ibuf_name, SM_INPUT_BUF_SIZE);
 	sm_obuf = (char *)create_sm(sm_obuf_name, SM_OUTPUT_BUF_SIZE);
@@ -265,11 +266,12 @@ static DWORD WINAPI handle_ssend_threadfunc(void *param)
 	sm_ibuf[0] = 1;
 	while(1) {
 		if (sm_ibuf[0] == 1) {
-			serial_send(g_serial, &sm_ibuf[1], strlen(&sm_ibuf[1]));
+            len = strlen(&sm_ibuf[1]);
+			serial_send(g_serial, &sm_ibuf[1], len);
+		    memset(sm_ibuf, 0, SM_INPUT_BUF_SIZE);
 		}
 		
-		memset(sm_ibuf, 0, SM_INPUT_BUF_SIZE);	
-		sleep(1);
+		/* sleep(1); */
 	}
 }
 

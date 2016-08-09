@@ -73,13 +73,15 @@ int main(int argc, char **argv)
         printf("send [%s] \n", argv[1]);
         len = strlen(argv[1]);
         memcpy((void*)&ibuf[1], argv[1], len);
+
         posm->writable = 1; /* it means put output in obuf */
         posm->offset   = 0;
+
         ibuf[0] = 1; /* it means the cmd is ready */
         ibuf[1 + len] = '\n';
     }
     /* while (ibuf[0] == 1);*/ /* 1. wait cmd send */
-    sleep(10);             /* 2. wait 1s for output */
+    sleep(5);             /* 2. wait 1s for output */
     posm->writable = 0;    /* let putty stop record output to obuf */
     for(i = 0; i < SM_OUTPUT_BUF_SIZE - sizeof(struct sm_obuf_struct); i++) {
         if (posm->buf[i] == 0) {
@@ -95,7 +97,7 @@ int main(int argc, char **argv)
     UnmapViewOfFile(ibuf);
     UnmapViewOfFile(obuf);
 
-    printf("exit!\n");
+    printf("\nexit!\n");
     return 0;
 
 }
