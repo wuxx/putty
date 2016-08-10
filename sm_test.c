@@ -81,7 +81,7 @@ int main(int argc, char **argv)
         ibuf[1 + len] = '\n';
     }
     /* while (ibuf[0] == 1);*/ /* 1. wait cmd send */
-    sleep(5);             /* 2. wait 1s for output */
+    sleep(2);             /* 2. wait 1s for output */
     posm->writable = 0;    /* let putty stop record output to obuf */
     for(i = 0; i < SM_OUTPUT_BUF_SIZE - sizeof(struct sm_obuf_struct); i++) {
         if (posm->buf[i] == 0) {

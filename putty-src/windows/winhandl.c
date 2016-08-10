@@ -160,8 +160,8 @@ static DWORD WINAPI handle_input_threadfunc(void *param)
 	}
 	readret = ReadFile(ctx->h, ctx->buffer,readlen, &ctx->len, povl);
 	if (protocol_serial) {
-		msg = dupprintf("wuxx recv [%s] [%d] [%x]", ctx->buffer != NULL ? ctx->buffer : "NULL", ctx->len, ctx->buffer[0]);
-		logevent(g_serial->frontend, msg);
+		/* msg = dupprintf("wuxx recv [%s] [%d] [%x]", ctx->buffer != NULL ? ctx->buffer : "NULL", ctx->len, ctx->buffer[0]);
+		logevent(g_serial->frontend, msg); */
 
 		if (sm_obuf != NULL) {
 		posm = (struct sm_obuf_struct *)sm_obuf;
@@ -188,8 +188,8 @@ static DWORD WINAPI handle_input_threadfunc(void *param)
 	    WaitForSingleObject(povl->hEvent, INFINITE);
 	    readret = GetOverlappedResult(ctx->h, povl, &ctx->len, FALSE);
 		if (protocol_serial) {
-			msg = dupprintf("wuxx recv [%s] [%d] [%x]", ctx->buffer != NULL ? ctx->buffer : "NULL", ctx->len, ctx->buffer[0]);
-			logevent(g_serial->frontend, msg);
+			/* msg = dupprintf("wuxx recv [%s] [%d] [%x]", ctx->buffer != NULL ? ctx->buffer : "NULL", ctx->len, ctx->buffer[0]);
+			logevent(g_serial->frontend, msg); */
 
 			if (sm_obuf != NULL) {
 			posm = (struct sm_obuf_struct *)sm_obuf;
@@ -378,8 +378,8 @@ static DWORD WINAPI handle_output_threadfunc(void *param)
 
 	writeret = WriteFile(ctx->h, ctx->buffer, ctx->len,
 			     &ctx->lenwritten, povl);
-	msg = dupprintf("wuxx WriteFile [%s]", ctx->buffer != NULL ? ctx->buffer : "NULL");
-	logevent(g_serial->frontend, msg);
+	/* msg = dupprintf("wuxx WriteFile [%s]", ctx->buffer != NULL ? ctx->buffer : "NULL");
+	logevent(g_serial->frontend, msg); */
 
 	if (!writeret)
 	    ctx->writeerr = GetLastError();
@@ -423,8 +423,8 @@ static void handle_try_output(struct handle_output *ctx)
 	bufchain_prefix(&ctx->queued_data, &senddata, &sendlen);
 	ctx->buffer = senddata;
 	ctx->len = sendlen;
-	msg = dupprintf("wuxx handle_try_output [%s]", ctx->buffer);
-	logevent(g_serial->frontend, msg);
+	/* msg = dupprintf("wuxx handle_try_output [%s]", ctx->buffer);
+	logevent(g_serial->frontend, msg); */
 	
 	SetEvent(ctx->ev_from_main);
 	ctx->busy = TRUE;

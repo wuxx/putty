@@ -264,6 +264,7 @@ static DWORD WINAPI handle_ssend_threadfunc(void *param)
 
 	memcpy(&sm_ibuf[1], str, strlen(str));
 	sm_ibuf[0] = 1;
+
 	while(1) {
 		if (sm_ibuf[0] == 1) {
             len = strlen(&sm_ibuf[1]);
