@@ -213,12 +213,7 @@ static const char *serial_configure(Serial serial, HANDLE serport, Conf *conf)
  */
  extern Serial g_serial;
  extern int protocol_serial;
-void SignalHandler(int signal)
-{
-	char *msg = dupprintf("wuxx receive signal [%d]", signal);
-    logevent(g_serial->frontend, msg);
-}
-
+ 
 /* 0: ready state; 1. finish state */
 int cmd_request = 0;
 
@@ -292,12 +287,7 @@ static const char *serial_init(void *frontend_handle, void **backend_handle,
     serial->break_in_progress = FALSE;
     *backend_handle = serial;
 	g_serial = serial;
-	protocol_serial = 1;
-    serial->frontend = frontend_handle;
-
- 	typedef void (*SignalHandlerPointer)(int);
- 	signal(SIGBREAK, SignalHandler);
- 
+    serial->frontend = frontend_handle; 
 
     serline = conf_get_str(conf, CONF_serline);
     {
@@ -356,13 +346,14 @@ static const char *serial_init(void *frontend_handle, void **backend_handle,
      * Specials are always available.
      */
     update_specials_menu(serial->frontend);
-	
+#if 1
+	protocol_serial = 1;	
     DWORD ssend_threadid; /* required for Win9x */
     CreateThread(NULL, 0, handle_ssend_threadfunc,
 		 0, 0, &ssend_threadid);
 	char *msg = dupprintf("ssend_threadid %d", ssend_threadid);
 	logevent(serial->frontend, msg);
-
+#endif
     return NULL;
 }
 

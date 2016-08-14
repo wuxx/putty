@@ -1,4 +1,5 @@
 #!/bin/bash
+# ./sm_test.exe "`cat cmd.txt`"
 
 cmd_list="help boot usb sleep test true usb mmcinfo version"
 

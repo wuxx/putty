@@ -80,8 +80,8 @@ int main(int argc, char **argv)
         ibuf[0] = 1; /* it means the cmd is ready */
         ibuf[1 + len] = '\n';
     }
-    /* while (ibuf[0] == 1);*/ /* 1. wait cmd send */
-    sleep(2);             /* 2. wait 1s for output */
+    while (ibuf[0] == 1); /* 1. wait cmd send */
+    sleep(2);             /* 2. wait 2s for output */
     posm->writable = 0;    /* let putty stop record output to obuf */
     for(i = 0; i < SM_OUTPUT_BUF_SIZE - sizeof(struct sm_obuf_struct); i++) {
         if (posm->buf[i] == 0) {
